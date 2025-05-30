@@ -364,7 +364,8 @@ async def buylootbox(interaction: discord.Interaction):
 
     await interaction.followup.send("🎁 Du hast erfolgreich eine **Lootbox** für **1500** Winkler Token gekauft!", ephemeral=True)
 
-# tower minigame
+# tower minigame main command
+@allowed_channel_only()
 @tree.command(name="tower", description="Beginne das Tower Minigame!")
 async def tower(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
@@ -395,6 +396,8 @@ async def tower(interaction: discord.Interaction):
         ephemeral=True
     )
 
+# tower minigame climb
+@allowed_channel_only()
 @tree.command(name="climb", description="Klettere eine weitere Stufe im Tower Spiel.")
 @app_commands.describe(tile="Welche Kachel? 1, 2 oder 3")
 async def climb(interaction: discord.Interaction, tile: int):
@@ -426,6 +429,8 @@ async def climb(interaction: discord.Interaction, tile: int):
         ephemeral=True
     )
 
+# tower minigame cashout
+@allowed_channel_only()
 @tree.command(name="cashout", description="Beende das Tower Spiel und nimm deinen Gewinn mit.")
 async def cashout(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
