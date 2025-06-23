@@ -201,25 +201,25 @@ async def balance(interaction: discord.Interaction, user: discord.Member = None)
 @app_commands.describe(choice="Kopf oder Zahl", amount="Wie viele Token willst du setzen?")
 async def flip(interaction: discord.Interaction, choice: str, amount: int):
     await interaction.response.defer(thinking=True,ephemeral=True) 
-    print(f"step 1 choice: {choice}, amount: {amount}")
+    #print(f"step 1 choice: {choice}, amount: {amount}")
     choice = choice.lower()
     if choice not in ["kopf", "zahl"]:
-        print(f"step 1 fail: choice: {choice}, amount: {amount}")
+        #print(f"step 1 fail: choice: {choice}, amount: {amount}")
         return await interaction.followup.send("❌ Bitte wähle `Kopf` oder `Zahl`.", ephemeral=True)
 
     user_id = interaction.user.id
     user_data = get_user(user_id)
     now = datetime.now(ZoneInfo("Europe/Berlin"))
-    print(f"step 2 : user_data: {user_data}")
+    #print(f"step 2 : user_data: {user_data}")
 
     # Cooldown check
     if user_data and user_data.get("last_flip"):
         try:
             last_flip = datetime.fromisoformat(user_data["last_flip"])
-            print(f" step 3 last_flip: {last_flip}")
+            #print(f" step 3 last_flip: {last_flip}")
             cooldown_end = last_flip + timedelta(hours=1)
             if now < cooldown_end:
-                print(f"step 4 now: {now}, cooldown_end: {cooldown_end}")
+                #print(f"step 4 now: {now}, cooldown_end: {cooldown_end}")
                 remaining = cooldown_end - now
                 minutes = remaining.seconds // 60
                 return await interaction.followup.send(
@@ -228,7 +228,7 @@ async def flip(interaction: discord.Interaction, choice: str, amount: int):
         except Exception as e:
             print(f"Error parsing last_flip: {e}")  # just in case
 
-    print(f"step 5 user_data: {user_data}")
+    #print(f"step 5 user_data: {user_data}")
     # Balance check
     balance = user_data["balance"]
     if amount <= 0:
@@ -240,7 +240,7 @@ async def flip(interaction: discord.Interaction, choice: str, amount: int):
     result = random.choice(["kopf", "zahl"])
     win = (choice == result)
 
-    print(f"step 6 result: {result}, win: {win}")
+    #print(f"step 6 result: {result}, win: {win}")
     update_last_flip(user_id, now.isoformat())
 
 
@@ -251,7 +251,7 @@ async def flip(interaction: discord.Interaction, choice: str, amount: int):
         update_balance(user_id, -amount)  # Subtract the bet amount
         result_msg = f"😢 Es war **{result.capitalize()}**. Du hast **{amount}** Winkler Token verloren."
 
-    print(f"step 7 result_msg: {result_msg}")
+    #print(f"step 7 result_msg: {result_msg}")
     await interaction.followup.send(result_msg, ephemeral=True)
 
 @allowed_channel_only()
@@ -303,49 +303,70 @@ async def inventory(interaction: discord.Interaction):
 
 # lootbox opening
 @allowed_channel_only()
-@tree.command(name="lootbox", description="Öffnet eine Lootbox.")
-async def lootbox(interaction: discord.Interaction):
+@tree.command(name="lootbox", description="Öffnet eine oder mehrere Lootboxen.")
+@app_commands.describe(amount="Wie viele Lootboxen möchtest du öffnen?")
+async def lootbox(interaction: discord.Interaction, amount: int = 1):
     await interaction.response.defer(thinking=True, ephemeral=True)
     user_id = interaction.user.id
 
     # Check inventory
     lootbox_count = get_inventory_item(user_id, "Lootbox")
-    if lootbox_count is None or lootbox_count <= 0:
-        return await interaction.followup.send("❌ Du besitzt keine 🎁 **Lootbox**!", ephemeral=True)
+    if lootbox_count is None or lootbox_count < amount:
+        return await interaction.followup.send(
+            f"❌ Du besitzt nicht genug 🎁 **Lootboxen**! (Besitzt: {lootbox_count})", ephemeral=True)
 
-    # Consume one lootbox
-    remove_from_inventory(user_id, "Lootbox", 1)
+    # Consume lootboxes
+    remove_from_inventory(user_id, "Lootbox", amount)
 
-    # Begin rolling animation
-    roll = random.randint(1, 100)
-    msg = await interaction.followup.send("🎁 Öffne Lootbox...", wait=True)
+    golden_boxes = 0
+    total_tokens = 0
+    results = []
 
-    fake_rolls = [number_to_emote(random.randint(1000, 2800)) for _ in range(3)]
-    for fake in fake_rolls:
-        await asyncio.sleep(1)
-        await msg.edit(content=f"🔄 {fake}")
+    msg = await interaction.followup.send(f"🎁 Öffne {amount}x Lootbox...", wait=True)
 
-    await asyncio.sleep(1)
+    for i in range(amount):
+        roll = random.randint(1, 100)
 
-    # Result
-    if roll == 1:
-        add_to_inventory(user_id, "Goldene Lootbox", 1)
-        await msg.edit(content=f"✨ 🎁\n✨ Du hast eine **Goldene Lootbox** gefunden!")
-    elif roll <= 21:
-        amount = random.randint(2000, 2800)
-        update_balance(user_id, amount)
-        final_number = number_to_emote(amount)
-        await msg.edit(content=f"🎯 {final_number}\n💰 Du hast **{amount}** Winkler Token gefunden!")
-    else:
-        amount = random.randint(500, 1500)
-        update_balance(user_id, amount)
-        final_number = number_to_emote(amount)
-        await msg.edit(content=f"🎯 {final_number}\n💰 Du hast **{amount}** Winkler Token gefunden!")
+        # Fake animation
+        fake = number_to_emote(random.randint(1000, 2800))
+        await asyncio.sleep(0.6)
+        await msg.edit(content=f"🔄 {fake} ({i+1}/{amount})")
+
+        await asyncio.sleep(0.3)
+
+        if roll == 1:
+            golden_boxes += 1
+            results.append("✨ Goldene Lootbox")
+        elif roll <= 21:
+            amt = random.randint(2000, 2800)
+            total_tokens += amt
+            results.append(f"💸 {amt} Tokens")
+        else:
+            amt = random.randint(500, 1500)
+            total_tokens += amt
+            results.append(f"💰 {amt} Tokens")
+
+    # Apply rewards
+    if golden_boxes > 0:
+        add_to_inventory(user_id, "Goldene Lootbox", golden_boxes)
+    if total_tokens > 0:
+        update_balance(user_id, total_tokens)
+
+    # Build final message
+    summary = (
+        f"🎁 **{amount}x Lootbox geöffnet!**\n\n"
+        f"{f'✨ {golden_boxes}x Goldene Lootbox\n' if golden_boxes else ''}"
+        f"💰 Insgesamt **{total_tokens}** Winkler Token\n"
+    )
+
+    await msg.edit(content=summary)
+
 
 # buy lootbox
 @allowed_channel_only()
-@tree.command(name="buylootbox", description="Kaufe eine Lootbox für 1500 Winkler Token")
-async def buylootbox(interaction: discord.Interaction):
+@tree.command(name="buylootbox", description="Kaufe eine oder mehrere Lootboxen für je 1500 Winkler Token.")
+@app_commands.describe(amount="Wie viele Lootboxen möchtest du kaufen?")
+async def buylootbox(interaction: discord.Interaction, amount: int = 1):
     await interaction.response.defer(ephemeral=True)
 
     user_id = interaction.user.id
@@ -354,15 +375,22 @@ async def buylootbox(interaction: discord.Interaction):
     if not user_data:
         return await interaction.followup.send("❌ Benutzer nicht gefunden.", ephemeral=True)
 
+    if amount <= 0:
+        return await interaction.followup.send("❌ Ungültige Menge.", ephemeral=True)
+
+    cost = 1500 * amount
     balance = user_data["balance"]
 
-    if balance < 1500:
-        return await interaction.followup.send("❌ Du hast nicht genug Winkler Token!", ephemeral=True)
+    if balance < cost:
+        return await interaction.followup.send(
+            f"❌ Du hast nicht genug Winkler Token! (Benötigt: {cost}, Dein Kontostand: {balance})", ephemeral=True)
 
-    update_balance(user_id, -1500)
-    add_to_inventory(user_id, "Lootbox", 1)
+    update_balance(user_id, -cost)
+    add_to_inventory(user_id, "Lootbox", amount)
 
-    await interaction.followup.send("🎁 Du hast erfolgreich eine **Lootbox** für **1500** Winkler Token gekauft!", ephemeral=True)
+    await interaction.followup.send(
+        f"🎁 Du hast erfolgreich **{amount}x Lootbox**{'en' if amount != 1 else ''} für **{cost}** Winkler Token gekauft!",
+        ephemeral=True)
 
 # tower minigame main command
 @allowed_channel_only()
